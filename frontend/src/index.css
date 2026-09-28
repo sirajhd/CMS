@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #f7fee7;
+  --color-brand-100: #ecfccb;
+  --color-brand-200: #d9f99d;
+  --color-brand-300: #bef264;
+  --color-brand-400: #a3e635;
+  --color-brand-500: #b4e600; /* Summit Hi-Vis Industrial Lime */
+  --color-brand-600: #84cc16;
+  --color-brand-700: #65a30d;
+  --color-brand-800: #1c2128;
+  --color-brand-900: #0d1117; /* Summit Industrial Charcoal */
+
+  --color-status-draft: #8b949e;
+  --color-status-submitted: #38bdf8;
+  --color-status-review: #f59e0b;
+  --color-status-approved: #b4e600;
+  --color-status-rejected: #ef4444;
+  --color-status-revision: #f97316;
+  --color-status-processing: #a855f7;
+  --color-status-completed: #10b981;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #0b0f14;
+  color: #f0f6fc;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
