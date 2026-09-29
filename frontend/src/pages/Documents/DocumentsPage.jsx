@@ -79,16 +79,18 @@ export function DocumentsPage() {
               Secure digital archive for drawings, milestone contracts, payment receipts, and waybills.
             </p>
           </div>
-          <Button
-            variant="primary"
-            size="md"
-            icon={FileUp}
-            disabled={!isAdmin && projects.length === 0}
-            onClick={() => setIsUploadModalOpen(true)}
-            title={(!isAdmin && projects.length === 0) ? 'You must be assigned to at least one construction project to upload documents.' : 'Upload Document'}
-          >
-            Upload Document
-          </Button>
+          {!isAdmin && (
+            <Button
+              variant="primary"
+              size="md"
+              icon={FileUp}
+              disabled={projects.length === 0}
+              onClick={() => setIsUploadModalOpen(true)}
+              title={projects.length === 0 ? 'You must be assigned to at least one construction project to upload documents.' : 'Upload Document'}
+            >
+              Upload Document
+            </Button>
+          )}
         </div>
 
         {/* Filter & Search Bar */}

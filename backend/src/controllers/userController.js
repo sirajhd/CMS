@@ -4,7 +4,19 @@ import db from '../config/db.js';
 export async function getUsers(req, res) {
   try {
     const result = await db.query(
-      'SELECT id, name, email, role, phone, title, created_at FROM users ORDER BY created_at ASC'
+      `SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.role, 
+        u.phone, 
+        u.title, 
+        u.created_at,
+        COUNT(DISTINCT p.id)::int as assigned_projects_count
+       FROM users u
+       LEFT JOIN projects p ON (p.house_holder_id = u.id OR p.engineer_id = u.id OR p.manager_id = u.id)
+       GROUP BY u.id
+       ORDER BY u.created_at ASC`
     );
     return res.status(200).json(result.rows);
   } catch (error) {

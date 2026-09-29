@@ -10,7 +10,6 @@ import {
   Clock,
   CreditCard,
   Users,
-  Plus,
   MapPin,
   X,
   AlertCircle,
@@ -49,22 +48,6 @@ export function AdminDashboard() {
   const [editingProject, setEditingProject] = useState(null);
   const [deletingProject, setDeletingProject] = useState(null);
 
-  // New Project Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    totalBudget: '',
-    houseHolderId: '',
-    engineerId: '',
-    managerId: '',
-    startDate: new Date().toISOString().split('T')[0],
-    expectedCompletion: '',
-    description: '',
-  });
-
   const loadData = async () => {
     try {
       setIsLoading(true);
@@ -84,51 +67,6 @@ export function AdminDashboard() {
   useEffect(() => {
     loadData();
   }, [user]);
-
-  const handleCreateProject = async (e) => {
-    e.preventDefault();
-    if (!isAdmin) return;
-
-    setFormError('');
-    setIsSubmitting(true);
-
-    try {
-      if (!formData.name.trim() || !formData.location.trim()) {
-        throw new Error('Project name and site location are required.');
-      }
-
-      const newProject = await projectService.createProject({
-        name: formData.name,
-        location: formData.location,
-        totalBudget: Number(formData.totalBudget) || 0,
-        houseHolderId: formData.houseHolderId || null,
-        engineerId: formData.engineerId || null,
-        managerId: formData.managerId || null,
-        startDate: formData.startDate,
-        expectedCompletion: formData.expectedCompletion || null,
-        description: formData.description,
-      });
-
-      setProjects((prev) => [newProject, ...prev]);
-
-      setFormData({
-        name: '',
-        location: '',
-        totalBudget: '',
-        houseHolderId: '',
-        engineerId: '',
-        managerId: '',
-        startDate: new Date().toISOString().split('T')[0],
-        expectedCompletion: '',
-        description: '',
-      });
-      setIsModalOpen(false);
-    } catch (err) {
-      setFormError(err.message || 'Failed to register project in database');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const houseHolders = allUsers.filter((u) => u.role === 'House Holder');
   const engineers = allUsers.filter((u) => u.role === 'Engineer');
@@ -182,17 +120,6 @@ export function AdminDashboard() {
           <h1 className="text-xl font-black text-white tracking-tight uppercase">{getDashboardTitle()}</h1>
           <p className="text-xs text-slate-400">{getDashboardSubtitle()}</p>
         </div>
-
-        {/* ONLY Render for Admin */}
-        {isAdmin && (
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#b4e600] hover:bg-[#cbf800] text-black text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Add New Project</span>
-          </button>
-        )}
       </div>
 
       {/* KPI Cards */}
@@ -717,164 +644,7 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {/* Admin-Only Modal: Register Project */}
-      {isAdmin && isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-[#161b22] w-full max-w-lg rounded-2xl shadow-2xl border border-[#30363d] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 border-b border-[#30363d] flex items-center justify-between bg-[#0d1117]">
-              <div>
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">Register Construction Site</h3>
-                <p className="text-xs text-slate-400">Administrator access: create project and assign stakeholders</p>
-              </div>
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-[#161b22] transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <form onSubmit={handleCreateProject} className="p-6 space-y-4">
-              {formError && (
-                <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl flex items-start gap-2.5 text-xs text-red-200">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Site Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Summit Luxury Villa"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Location / Municipality *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g., Bole Subcity, Addis Ababa"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Total Contract Budget (ETB) *</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g., 2500000"
-                    value={formData.totalBudget}
-                    onChange={(e) => setFormData({ ...formData, totalBudget: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Stakeholder Dropdowns */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Property Owner (House Holder)</label>
-                <select
-                  value={formData.houseHolderId}
-                  onChange={(e) => setFormData({ ...formData, houseHolderId: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                >
-                  <option value="">Select Property Owner...</option>
-                  {houseHolders.map((u) => (
-                    <option key={u.id} value={u.id} className="bg-[#0d1117] text-white">{u.name} ({u.email})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Lead Structural Engineer</label>
-                  <select
-                    value={formData.engineerId}
-                    onChange={(e) => setFormData({ ...formData, engineerId: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                  >
-                    <option value="">Select Engineer...</option>
-                    {engineers.map((u) => (
-                      <option key={u.id} value={u.id} className="bg-[#0d1117] text-white">{u.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Operations Manager</label>
-                  <select
-                    value={formData.managerId}
-                    onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                  >
-                    <option value="">Select Manager...</option>
-                    {managers.map((u) => (
-                      <option key={u.id} value={u.id} className="bg-[#0d1117] text-white">{u.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Project Scope / Technical Description</label>
-                <textarea
-                  rows="2"
-                  placeholder="Describe structural scope, foundations, floors..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] resize-none transition-all"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">Expected Completion</label>
-                  <input
-                    type="date"
-                    value={formData.expectedCompletion}
-                    onChange={(e) => setFormData({ ...formData, expectedCompletion: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-[#0d1117] border border-[#30363d] text-white focus:outline-none focus:ring-2 focus:ring-[#b4e600] focus:border-[#b4e600] transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-[#30363d] hover:bg-[#0d1117] text-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-[#b4e600] hover:bg-[#cbf800] text-black text-xs font-black uppercase tracking-wider rounded-lg shadow-lg transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  {isSubmitting ? 'Saving to Database...' : 'Register Project'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Edit Project Modal */}
       <EditProjectModal
