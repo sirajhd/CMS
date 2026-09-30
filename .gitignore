@@ -2,3 +2,13 @@ node_modules/
 .env
 dist/
 build/
+# Environment variables
+.env
+.env.*
+backend/.env
+
+# Dependencies
+node_modules/
+
+# Backend uploads
+backend/uploads/

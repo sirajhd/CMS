@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
 export const simulateNetworkDelay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -35,6 +35,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    if (error.response?.status === 401) {
+      try {
+        localStorage.removeItem('cms_session_user');
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } catch (e) {
+        console.error('Failed to clear session on 401:', e);
+      }
+    }
     const message = error.response?.data?.message || error.message || 'Request failed';
     return Promise.reject(new Error(message));
   }

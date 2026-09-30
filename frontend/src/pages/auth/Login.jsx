@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getHomeRouteForRole } from '../../routes/ProtectedRoute';
-import { HardHat, Lock, Mail, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck, KeyRound } from 'lucide-react';
+import { HardHat, Lock, Mail, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck, KeyRound, Building2 } from 'lucide-react';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 
 export function Login() {
@@ -71,7 +71,7 @@ export function Login() {
           <HardHat className="w-8 h-8 stroke-[2.5]" />
         </div>
         <h1 className="text-2xl font-black tracking-tight text-white uppercase">
-          Construction Management System
+          HDtech-CMS
         </h1>
         <p className="mt-1.5 text-xs text-slate-400">
           Secure Portal Authentication & Stakeholder Workspace
@@ -194,8 +194,8 @@ export function Login() {
                 <ArrowRight className="w-4 h-4 stroke-[3]" />
               </button>
 
-              {/* Centered Link: Forgot password? */}
-              <div className="text-center pt-2">
+              {/* Links: Forgot password & Register Company */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsForgotPasswordOpen(true)}
@@ -204,13 +204,21 @@ export function Login() {
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Forgot password?</span>
                 </button>
+
+                <Link
+                  to="/register-company"
+                  className="text-xs font-bold text-[#b4e600] hover:text-[#cbf800] transition-colors inline-flex items-center gap-1.5 hover:underline"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Register Company →</span>
+                </Link>
               </div>
             </div>
           </form>
 
           <div className="pt-4 border-t border-[#30363d]/80 flex items-center justify-center gap-2 text-[11px] text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 text-[#b4e600]" />
-            <span>Protected by JWT Authentication & RBAC</span>
+            <span>Multi-Tenant Architecture • Role-Based Access Control</span>
           </div>
         </div>
       </div>

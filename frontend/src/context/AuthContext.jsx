@@ -31,6 +31,12 @@ export function AuthProvider({ children }) {
     return sessionUser;
   };
 
+  const registerCompany = async (companyData) => {
+    const sessionUser = await authService.registerCompany(companyData);
+    setUser(sessionUser);
+    return sessionUser;
+  };
+
   const logout = async () => {
     await authService.logout();
     setUser(null);
@@ -38,12 +44,16 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    company: user?.company || null,
+    companyId: user?.companyId || null,
     role: user?.role || null,
     isAuthenticated: Boolean(user),
     loading,
     login,
     register,
+    registerCompany,
     logout,
+    isSuperAdmin: user?.role === 'SuperAdmin',
     isAdmin: user?.role === 'Admin',
     isHouseHolder: user?.role === 'House Holder',
     isEngineer: user?.role === 'Engineer',

@@ -26,6 +26,16 @@ export const authService = {
     return sessionData;
   },
 
+  async registerCompany(companyRegistrationData) {
+    const data = await apiClient.post('/auth/register-company', companyRegistrationData);
+    const sessionData = {
+      ...data.user,
+      token: data.token,
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+    return sessionData;
+  },
+
   async forgotPassword(email) {
     return await apiClient.post('/auth/forgot-password', { email });
   },

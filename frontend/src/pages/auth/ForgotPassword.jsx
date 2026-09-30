@@ -46,7 +46,7 @@ export function ForgotPassword() {
           <HardHat className="w-8 h-8 stroke-[2.5]" />
         </div>
         <h1 className="text-2xl font-black tracking-tight text-white uppercase">
-          Construction Management System
+          HDtech-CMS
         </h1>
         <p className="mt-1.5 text-xs text-slate-400">
           Account Security & Password Recovery

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import db from '../config/db.js';
 import { generateToken } from '../utils/token.js';
 import { sendPasswordResetEmail } from '../utils/email.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 export async function login(req, res) {
   const { email, password } = req.body;
@@ -12,16 +13,41 @@ export async function login(req, res) {
   }
 
   try {
-    const userResult = await db.query(
-      'SELECT * FROM users WHERE LOWER(email) = LOWER($1)',
-      [email.trim()]
-    );
+    const query = `
+      SELECT 
+        u.*,
+        c.name AS company_name,
+        c.code AS company_code,
+        c.subdomain AS company_subdomain,
+        c.logo_url AS company_logo,
+        c.status AS company_status
+      FROM users u
+      LEFT JOIN companies c ON u.company_id = c.id
+      WHERE LOWER(u.email) = LOWER($1)
+    `;
+
+    const userResult = await db.query(query, [email.trim()]);
 
     if (userResult.rows.length === 0) {
       return res.status(401).json({ message: 'Invalid credentials. User not found.' });
     }
 
     const user = userResult.rows[0];
+
+    // Enforce active user status
+    if (user.status && user.status !== 'ACTIVE') {
+      return res.status(403).json({ message: `Access Denied: Your user account status is ${user.status}.` });
+    }
+
+    // Enforce company active status for non-SuperAdmin users
+    if (user.role !== 'SuperAdmin' && user.company_id) {
+      if (user.company_status && user.company_status !== 'ACTIVE') {
+        return res.status(403).json({
+          message: `Access Denied: Your company workspace (${user.company_name || 'Tenant'}) is currently ${user.company_status.toLowerCase()}. Please contact platform administrator.`,
+        });
+      }
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
@@ -30,18 +56,36 @@ export async function login(req, res) {
 
     const token = generateToken({
       id: user.id,
+      companyId: user.company_id,
       email: user.email,
       role: user.role,
     });
 
     const userProfile = {
       id: user.id,
+      companyId: user.company_id,
+      companyName: user.company_name,
+      companyCode: user.company_code,
+      companySubdomain: user.company_subdomain,
+      companyLogo: user.company_logo,
+      companyStatus: user.company_status,
       name: user.name,
       email: user.email,
       role: user.role,
       phone: user.phone,
       title: user.title,
     };
+
+    // Log successful sign-in
+    await logAudit({
+      companyId: user.company_id,
+      userId: user.id,
+      action: 'USER_LOGIN',
+      entityType: 'AUTH',
+      entityId: user.id,
+      details: `User ${user.email} (${user.role}) logged in successfully.`,
+      ipAddress: req.ip,
+    });
 
     return res.status(200).json({
       message: 'Authentication successful',
@@ -54,16 +98,161 @@ export async function login(req, res) {
   }
 }
 
+/**
+ * Company Self-Registration (Onboarding for new construction companies)
+ */
+export async function registerCompany(req, res) {
+  const {
+    name,
+    companyName,
+    code,
+    companyCode,
+    subdomain,
+    email,
+    companyEmail,
+    phone,
+    companyPhone,
+    address,
+    adminName,
+    adminEmail,
+    adminPassword,
+    adminPhone,
+    adminTitle,
+  } = req.body;
+
+  const targetName = (name || companyName || '').trim();
+  let targetCode = (code || companyCode || '').trim();
+  if (!targetCode && targetName) {
+    targetCode = targetName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
+  }
+  const targetAdminEmail = (adminEmail || '').trim();
+  const targetAdminName = (adminName || '').trim();
+  const targetAdminPassword = adminPassword || '';
+
+  if (!targetName || !targetCode || !targetAdminName || !targetAdminEmail || !targetAdminPassword) {
+    return res.status(400).json({
+      message: 'Company name, company code, admin name, admin email, and password are required.',
+    });
+  }
+
+  if (targetAdminPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Check unique code and email
+    const codeCheck = await client.query('SELECT id FROM companies WHERE LOWER(code) = LOWER($1)', [targetCode]);
+    if (codeCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'A company with this unique identification code already exists.' });
+    }
+
+    const emailCheck = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [targetAdminEmail]);
+    if (emailCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'An account with this email address already exists.' });
+    }
+
+    // 1. Create Company
+    const cleanSubdomain = subdomain ? subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') : targetCode.toLowerCase();
+    const compInsert = await client.query(`
+      INSERT INTO companies (name, code, subdomain, email, phone, address, status, total_sites)
+      VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', 0)
+      RETURNING *;
+    `, [
+      targetName,
+      targetCode.toUpperCase(),
+      cleanSubdomain,
+      (email || companyEmail) ? (email || companyEmail).trim() : null,
+      (phone || companyPhone) ? (phone || companyPhone).trim() : null,
+      address ? address.trim() : null,
+    ]);
+
+    const newCompany = compInsert.rows[0];
+
+    // 2. Create Initial Company System Admin
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(adminPassword, salt);
+
+    const userInsert = await client.query(`
+      INSERT INTO users (company_id, name, email, password_hash, role, phone, title)
+      VALUES ($1, $2, $3, $4, 'Admin', $5, $6)
+      RETURNING id, company_id, name, email, role, phone, title, created_at;
+    `, [
+      newCompany.id,
+      adminName.trim(),
+      adminEmail.trim().toLowerCase(),
+      passwordHash,
+      adminPhone ? adminPhone.trim() : null,
+      adminTitle ? adminTitle.trim() : 'Company System Administrator',
+    ]);
+
+    const newAdmin = userInsert.rows[0];
+
+    // 3. Log Audit
+    await client.query(`
+      INSERT INTO audit_logs (company_id, user_id, action, entity_type, entity_id, details)
+      VALUES ($1, $2, 'COMPANY_SELF_REGISTRATION', 'COMPANY', $3, $4);
+    `, [
+      newCompany.id,
+      newAdmin.id,
+      String(newCompany.id),
+      `Company "${newCompany.name}" provisioned workspace with administrator "${newAdmin.name}".`,
+    ]);
+
+    await client.query('COMMIT');
+
+    const token = generateToken({
+      id: newAdmin.id,
+      companyId: newCompany.id,
+      email: newAdmin.email,
+      role: 'Admin',
+    });
+
+    return res.status(201).json({
+      message: 'Company workspace registered successfully. Welcome to HDtech-CMS!',
+      token,
+      user: {
+        id: newAdmin.id,
+        companyId: newCompany.id,
+        companyName: newCompany.name,
+        companyCode: newCompany.code,
+        companySubdomain: newCompany.subdomain,
+        companyLogo: newCompany.logo_url,
+        companyStatus: newCompany.status,
+        company: {
+          id: newCompany.id,
+          name: newCompany.name,
+          code: newCompany.code,
+          subdomain: newCompany.subdomain,
+          logoUrl: newCompany.logo_url,
+          status: newCompany.status,
+        },
+        name: newAdmin.name,
+        email: newAdmin.email,
+        role: newAdmin.role,
+        phone: newAdmin.phone,
+        title: newAdmin.title,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error registering company:', error);
+    return res.status(500).json({ message: 'Failed to provision company workspace.', error: error.message });
+  } finally {
+    client.release();
+  }
+}
+
 export async function getMe(req, res) {
   return res.status(200).json({
     user: req.user,
   });
 }
 
-/**
- * Handle Forgot Password Request:
- * Generates a crypto reset token, saves it with expiration in DB, and sends email.
- */
 export async function forgotPassword(req, res) {
   const { email } = req.body;
 
@@ -74,20 +263,12 @@ export async function forgotPassword(req, res) {
   const cleanEmail = email.trim().toLowerCase();
 
   try {
-    // Ensure DB columns exist
-    await db.query(`
-      ALTER TABLE users 
-      ADD COLUMN IF NOT EXISTS reset_password_token VARCHAR(255),
-      ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP WITH TIME ZONE;
-    `);
-
     const userRes = await db.query(
       'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1)',
       [cleanEmail]
     );
 
     if (userRes.rows.length === 0) {
-      // For user friendliness while protecting user enumeration, return a clear message
       return res.status(200).json({
         message: 'If an account with that email exists in our system, password reset instructions have been sent.',
         sent: true,
@@ -95,15 +276,10 @@ export async function forgotPassword(req, res) {
     }
 
     const user = userRes.rows[0];
-
-    // Generate secure random reset token (64 hex characters)
     const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-
-    // Token expires in 1 hour
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-    // Store token hash and expiration in DB
     await db.query(
       `UPDATE users 
        SET reset_password_token = $1, reset_password_expires = $2 
@@ -111,11 +287,9 @@ export async function forgotPassword(req, res) {
       [tokenHash, expiresAt, user.id]
     );
 
-    // Build reset URL
     const clientBaseUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${clientBaseUrl}/reset-password?token=${rawToken}`;
 
-    // Send email
     const emailResult = await sendPasswordResetEmail({
       toEmail: user.email,
       userName: user.name,
@@ -124,12 +298,9 @@ export async function forgotPassword(req, res) {
       expiresMinutes: 60,
     });
 
-    console.log(`[Forgot Password] Reset token generated for ${user.email}. Link: ${resetUrl}`);
-
     return res.status(200).json({
       message: 'Password reset link has been sent to your email address.',
       sent: true,
-      // Provide preview URL in development mode so user can test effortlessly
       devResetUrl: process.env.NODE_ENV !== 'production' ? resetUrl : undefined,
       devToken: process.env.NODE_ENV !== 'production' ? rawToken : undefined,
       emailDelivered: emailResult.success,
@@ -137,15 +308,12 @@ export async function forgotPassword(req, res) {
   } catch (error) {
     console.error('Forgot password error:', error);
     return res.status(500).json({
-      message: 'An error occurred while processing your password reset request. Please try again.',
+      message: 'An error occurred while processing your password reset request.',
       error: error.message,
     });
   }
 }
 
-/**
- * Verify if a reset token is valid and unexpired
- */
 export async function verifyResetToken(req, res) {
   const { token } = req.params;
 
@@ -182,9 +350,6 @@ export async function verifyResetToken(req, res) {
   }
 }
 
-/**
- * Reset password using the valid token
- */
 export async function resetPassword(req, res) {
   const { token, newPassword } = req.body;
 
@@ -213,20 +378,15 @@ export async function resetPassword(req, res) {
     }
 
     const user = result.rows[0];
-
-    // Hash the new password
     const salt = await bcrypt.genSalt(10);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
-    // Update password and invalidate token
     await db.query(
       `UPDATE users 
        SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL 
        WHERE id = $2`,
       [newPasswordHash, user.id]
     );
-
-    console.log(`[Reset Password] Successfully updated password for user: ${user.email}`);
 
     return res.status(200).json({
       success: true,
@@ -238,73 +398,11 @@ export async function resetPassword(req, res) {
   }
 }
 
-/**
- * Stakeholder Registration (Sign Up)
- */
-export async function register(req, res) {
-  const { name, email, password, role = 'House Holder', phone = '', title = '' } = req.body;
-
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: 'Name, email, and password are required.' });
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
-  }
-
-  const validRoles = ['Admin', 'House Holder', 'Engineer', 'Manager'];
-  const assignedRole = validRoles.includes(role) ? role : 'House Holder';
-
-  try {
-    const existing = await db.query(
-      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
-      [email.trim()]
-    );
-
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ message: 'An account with this email address already exists.' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    const result = await db.query(
-      `INSERT INTO users (name, email, password_hash, role, phone, title)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, email, role, phone, title, created_at`,
-      [name.trim(), email.trim().toLowerCase(), passwordHash, assignedRole, phone.trim(), title.trim()]
-    );
-
-    const newUser = result.rows[0];
-    const token = generateToken({
-      id: newUser.id,
-      email: newUser.email,
-      role: newUser.role,
-    });
-
-    return res.status(201).json({
-      message: 'Account created successfully.',
-      token,
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        phone: newUser.phone,
-        title: newUser.title,
-      },
-    });
-  } catch (error) {
-    console.error('Register error:', error);
-    return res.status(500).json({ message: 'Failed to create account.', error: error.message });
-  }
-}
-
 export default {
   login,
+  registerCompany,
   getMe,
   forgotPassword,
   verifyResetToken,
   resetPassword,
-  register,
 };

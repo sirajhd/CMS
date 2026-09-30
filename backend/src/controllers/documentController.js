@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import db from '../config/db.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -19,7 +20,7 @@ export const uploadMiddleware = multer({
 });
 
 export async function getDocuments(req, res) {
-  const { role, id: userId } = req.user;
+  const { role, id: userId, companyId } = req.user;
   const { projectId } = req.query;
 
   try {
@@ -34,30 +35,34 @@ export async function getDocuments(req, res) {
     `;
     const params = [];
 
-    if (projectId) {
+    if (role === 'SuperAdmin') {
+      if (req.query.companyId) {
+        queryText += ' WHERE d.company_id = $1';
+        params.push(req.query.companyId);
+      }
+    } else {
+      // Company tenant isolation
+      queryText += ' WHERE d.company_id = $1';
+      params.push(companyId);
+
       if (role !== 'Admin') {
         queryText += `
-          WHERE d.project_id = $1 AND (
+          AND (
             p.house_holder_id = $2 OR 
             p.engineer_id = $2 OR 
             p.manager_id = $2
           )
         `;
-        params.push(projectId, userId);
-      } else {
-        queryText += ' WHERE d.project_id = $1';
-        params.push(projectId);
+        params.push(userId);
       }
-    } else if (role !== 'Admin') {
-      queryText += `
-        WHERE p.house_holder_id = $1 
-           OR p.engineer_id = $1 
-           OR p.manager_id = $1
-      `;
-      params.push(userId);
     }
 
-    queryText += ' ORDER BY d.created_at DESC';
+    if (projectId) {
+      queryText += ` AND d.project_id = $${params.length + 1}`;
+      params.push(projectId);
+    }
+
+    queryText += ' ORDER BY d.created_at DESC;';
 
     const result = await db.query(queryText, params);
     return res.status(200).json(result.rows);
@@ -69,30 +74,31 @@ export async function getDocuments(req, res) {
 
 export async function uploadDocument(req, res) {
   const { projectId, name, type } = req.body;
-  const { id: userId, role } = req.user;
+  const { id: userId, role, companyId } = req.user;
 
   if (!projectId || !name || !type) {
     return res.status(400).json({ message: 'Project ID, document name, and type classification are required.' });
   }
 
-  try {
-    // Enforce site membership check: user must be Admin OR assigned stakeholder of this project
-    if (role !== 'Admin') {
-      const accessQuery = `
-        SELECT id, name FROM projects 
-        WHERE id = $1 AND (
-          house_holder_id = $2 OR 
-          engineer_id = $2 OR 
-          manager_id = $2
-        )
-      `;
-      const accessResult = await db.query(accessQuery, [projectId, userId]);
+  // Security Constraint: The Admin must not upload payment receipts or record project expenses
+  if (role === 'Admin' && (type === 'Payment Receipt' || type === 'Expense Voucher' || type.toLowerCase().includes('receipt'))) {
+    return res.status(403).json({
+      message: 'Access Denied: Administrators must not upload payment receipts or record project expenses. Payment receipts are exclusively managed by the assigned Site Operations Manager upon bank disbursement.',
+    });
+  }
 
-      if (accessResult.rows.length === 0) {
-        return res.status(403).json({ 
-          message: 'Access Denied: Only assigned site members (Property Owner, Lead Engineer, Site Manager) or system administrators can upload documents to this construction project.' 
-        });
-      }
+  try {
+    // Validate project belongs to user's company
+    const accessQuery = `
+      SELECT id, name, company_id FROM projects 
+      WHERE id = $1 AND company_id = $2
+    `;
+    const accessResult = await db.query(accessQuery, [projectId, companyId]);
+
+    if (accessResult.rows.length === 0) {
+      return res.status(403).json({ 
+        message: 'Access Denied: Target construction project not found in your company workspace.' 
+      });
     }
 
     const file = req.file;
@@ -101,11 +107,12 @@ export async function uploadDocument(req, res) {
     const fileType = file ? path.extname(file.originalname).replace('.', '').toUpperCase() : 'PDF';
 
     const insertQuery = `
-      INSERT INTO documents (project_id, name, type, file_type, file_size, file_url, uploaded_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO documents (company_id, project_id, name, type, file_type, file_size, file_url, uploaded_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
     const insertResult = await db.query(insertQuery, [
+      companyId,
       projectId,
       name,
       type,
@@ -117,7 +124,7 @@ export async function uploadDocument(req, res) {
 
     const createdDocId = insertResult.rows[0].id;
 
-    // Fetch joined document with project name and author name
+    // Fetch joined document
     const populated = await db.query(`
       SELECT 
         d.*,
@@ -129,8 +136,17 @@ export async function uploadDocument(req, res) {
       WHERE d.id = $1
     `, [createdDocId]);
 
+    await logAudit({
+      companyId,
+      userId,
+      action: 'UPLOAD_DOCUMENT',
+      entityType: 'DOCUMENT',
+      entityId: createdDocId,
+      details: `Document "${name}" (${type}) uploaded to project "${accessResult.rows[0].name}".`,
+    });
+
     return res.status(201).json({
-      message: 'Document saved to archive.',
+      message: 'Document saved to company archive.',
       document: populated.rows[0] || insertResult.rows[0],
     });
   } catch (error) {

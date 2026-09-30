@@ -12,6 +12,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import materialRoutes from './routes/materialRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
+import superAdminRoutes from './routes/superAdminRoutes.js';
 
 dotenv.config();
 
@@ -66,6 +67,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/materials', materialRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/superadmin', superAdminRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

@@ -1,8 +1,12 @@
-﻿import db from '../config/db.js';
+import db from '../config/db.js';
 
 export async function verifySiteAccess(req, res, next) {
-  const { role, id: userId } = req.user;
-  const projectId = req.params.id || req.params.projectId || req.body.projectId;
+  const { role, id: userId, companyId } = req.user;
+  const projectId = req.params.id || req.params.projectId || req.body.projectId || req.body.project_id || req.query.projectId || req.query.project_id;
+
+  if (role === 'SuperAdmin') {
+    return next();
+  }
 
   if (role === 'Admin') {
     return next();
@@ -15,13 +19,13 @@ export async function verifySiteAccess(req, res, next) {
   try {
     const query = `
       SELECT id FROM projects 
-      WHERE id = $1 AND (
-        house_holder_id = $2 OR 
-        engineer_id = $2 OR 
-        manager_id = $2
+      WHERE id = $1 AND company_id = $2 AND (
+        house_holder_id = $3 OR 
+        engineer_id = $3 OR 
+        manager_id = $3
       )
     `;
-    const result = await db.query(query, [projectId, userId]);
+    const result = await db.query(query, [projectId, companyId, userId]);
 
     if (result.rows.length === 0) {
       return res.status(403).json({

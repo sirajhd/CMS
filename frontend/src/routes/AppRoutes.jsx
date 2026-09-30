@@ -5,8 +5,12 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { Login } from '../pages/auth/Login';
 import { ForgotPassword } from '../pages/auth/ForgotPassword';
 import { ResetPassword } from '../pages/auth/ResetPassword';
+import { RegisterCompanyPage } from '../pages/auth/RegisterCompanyPage';
+import { SuperAdminDashboard } from '../pages/superadmin/SuperAdminDashboard';
+import { SuperAdminCompanies } from '../pages/superadmin/SuperAdminCompanies';
+import { SuperAdminAuditLogs } from '../pages/superadmin/SuperAdminAuditLogs';
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
-import { HouseHolderDashboard } from '../pages/householder/HouseHolderDashboard';
+import { HouseHolderDashboard } from '../pages/houseHolder/HouseHolderDashboard';
 import { EngineerDashboard } from '../pages/engineer/EngineerDashboard';
 import { ManagerDashboard } from '../pages/manager/ManagerDashboard';
 import { ProjectsPage } from '../pages/projects/ProjectsPage';
@@ -38,6 +42,10 @@ export function AppRoutes() {
         element={user ? <HomeRedirect /> : <Login />} 
       />
       <Route 
+        path="/register-company" 
+        element={user ? <HomeRedirect /> : <RegisterCompanyPage />} 
+      />
+      <Route 
         path="/forgot-password" 
         element={user ? <HomeRedirect /> : <ForgotPassword />} 
       />
@@ -61,6 +69,32 @@ export function AppRoutes() {
       >
         {/* Dynamic Root Redirection */}
         <Route index element={<HomeRedirect />} />
+
+        {/* Super Admin Platform Routes */}
+        <Route 
+          path="superadmin/dashboard" 
+          element={
+            <ProtectedRoute allowedRoles={['SuperAdmin']}>
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="superadmin/companies" 
+          element={
+            <ProtectedRoute allowedRoles={['SuperAdmin']}>
+              <SuperAdminCompanies />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="superadmin/audit-logs" 
+          element={
+            <ProtectedRoute allowedRoles={['SuperAdmin']}>
+              <SuperAdminAuditLogs />
+            </ProtectedRoute>
+          } 
+        />
 
         {/* Role-Specific Dashboards */}
         <Route 
@@ -116,7 +150,7 @@ export function AppRoutes() {
         <Route 
           path="requests" 
           element={
-            <ProtectedRoute allowedRoles={['Admin', 'Engineer', 'House Holder']}>
+            <ProtectedRoute allowedRoles={['Admin', 'House Holder', 'Engineer', 'Manager']}>
               <RequestsPage />
             </ProtectedRoute>
           } 
@@ -132,7 +166,7 @@ export function AppRoutes() {
         <Route 
           path="payments" 
           element={
-            <ProtectedRoute allowedRoles={['Admin', 'House Holder', 'Manager']}>
+            <ProtectedRoute allowedRoles={['Admin', 'House Holder', 'Engineer', 'Manager']}>
               <PaymentsPage />
             </ProtectedRoute>
           } 
@@ -156,7 +190,7 @@ export function AppRoutes() {
         <Route 
           path="activities" 
           element={
-            <ProtectedRoute allowedRoles={['Admin', 'House Holder', 'Engineer', 'Manager']}>
+            <ProtectedRoute allowedRoles={['SuperAdmin', 'Admin', 'House Holder', 'Engineer', 'Manager']}>
               <ActivitiesPage />
             </ProtectedRoute>
           } 
@@ -170,3 +204,4 @@ export function AppRoutes() {
 }
 
 export default AppRoutes;
+

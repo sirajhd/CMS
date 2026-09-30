@@ -1,4 +1,4 @@
-﻿import apiClient from './api.js';
+import apiClient from './api.js';
 
 function formatPayment(raw) {
   if (!raw) return null;
@@ -10,11 +10,15 @@ function formatPayment(raw) {
     requestTitle: raw.request_title || 'Payment Tranche',
     requestedAmount: Number(raw.requested_amount) || 0,
     approvedAmount: Number(raw.approved_amount) || 0,
+    additionalExpenses: Number(raw.additional_expenses) || 0,
+    totalAmount: Number(raw.total_amount) || (Number(raw.approved_amount) || Number(raw.requested_amount) || 0),
     status: raw.status,
     paymentDate: raw.payment_date,
-    paymentMethod: raw.payment_method || 'Commercial Bank of Ethiopia',
+    bankName: raw.bank_name || 'Commercial Bank of Ethiopia',
+    paymentMethod: raw.payment_method || 'Bank Transfer',
     paymentReference: raw.payment_reference || '',
     receiptDocUrl: raw.receipt_doc_url || null,
+    expensesNotes: raw.expenses_notes || '',
     notes: raw.notes || '',
   };
 }

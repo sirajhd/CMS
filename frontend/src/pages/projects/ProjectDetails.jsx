@@ -780,26 +780,73 @@ export function ProjectDetails() {
 
         {/* Tab 4: Payments */}
         {activeTab === 'payments' && (
-          <Card title="Disbursement Ledger" subtitle="Tranches for this site">
+          <Card title="Disbursement Ledger & Financial Payouts" subtitle="Milestone tranches & settled expenses for this construction site">
             <Table
               columns={[
                 { header: 'Milestone Item' },
-                { header: 'Amount' },
-                { header: 'Method' },
-                { header: 'Bank Reference' },
+                { header: 'Base Amount' },
+                { header: 'Extra Expenses' },
+                { header: 'Total Disbursed' },
+                { header: 'Bank & Reference' },
+                { header: 'Receipt Slip' },
                 { header: 'Status' },
               ]}
               data={payments}
               keyExtractor={(p) => p.id}
-              renderRow={(p) => (
-                <>
-                  <td className="py-3 px-4 font-bold text-white">{p.requestTitle}</td>
-                  <td className="py-3 px-4 font-black text-[#b4e600]">{formatCurrency(p.approvedAmount || p.requestedAmount)}</td>
-                  <td className="py-3 px-4 text-slate-300">{p.paymentMethod}</td>
-                  <td className="py-3 px-4 font-mono text-[11px] text-sky-400">{p.paymentReference || '—'}</td>
-                  <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
-                </>
-              )}
+              renderRow={(p) => {
+                const baseAmt = Number(p.approvedAmount || p.requestedAmount || 0);
+                const extraAmt = Number(p.additionalExpenses || 0);
+                const totalAmt = Number(p.totalAmount || (baseAmt + extraAmt));
+
+                return (
+                  <>
+                    <td className="py-3 px-4 font-bold text-white">
+                      <div>{p.requestTitle}</div>
+                      {p.notes && <div className="text-[10px] text-slate-400 mt-0.5">{p.notes}</div>}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-200">
+                      {formatCurrency(baseAmt)}
+                    </td>
+                    <td className="py-3 px-4 text-xs font-mono">
+                      {extraAmt > 0 ? (
+                        <div>
+                          <span className="text-amber-400 font-bold">+{formatCurrency(extraAmt)}</span>
+                          {p.expensesNotes && (
+                            <div className="text-[9px] text-slate-400 truncate max-w-[120px]">
+                              {p.expensesNotes}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 font-black text-[#b4e600] font-mono">
+                      {formatCurrency(totalAmt)}
+                    </td>
+                    <td className="py-3 px-4 text-slate-300">
+                      <div className="font-semibold text-white">{p.bankName || p.paymentMethod || 'Bank Transfer'}</div>
+                      <div className="font-mono text-[10px] text-sky-400 mt-0.5">{p.paymentReference || '—'}</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      {p.receiptDocUrl ? (
+                        <a
+                          href={p.receiptDocUrl.startsWith('http') ? p.receiptDocUrl : `http://localhost:5000${p.receiptDocUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#b4e600] hover:text-[#cbf800] underline"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>View Receipt</span>
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 italic">None</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
+                  </>
+                );
+              }}
             />
           </Card>
         )}

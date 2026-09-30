@@ -1,23 +1,33 @@
 import db from '../config/db.js';
 
 export async function getActivities(req, res) {
-  const { role, id: userId } = req.user;
-  const { projectId } = req.query;
+  const { role, id: userId, companyId } = req.user;
+  const { projectId, companyId: filterCompanyId } = req.query;
 
   try {
-    // If a specific project is requested, check permissions
+    const isSuperAdmin = role === 'SuperAdmin';
+    const effectiveCompanyId = isSuperAdmin ? (filterCompanyId ? parseInt(filterCompanyId) : null) : companyId;
+
+    // If a specific project is requested, check permissions and company scoping
     if (projectId) {
-      if (role !== 'Admin') {
-        const verifyProject = await db.query(
-          `SELECT id FROM projects 
-           WHERE id = $1 AND (house_holder_id = $2 OR engineer_id = $2 OR manager_id = $2)`,
-          [projectId, userId]
-        );
-        if (verifyProject.rows.length === 0) {
-          return res.status(403).json({
-            message: 'Access Denied: You are not authorized to view activities for this project.'
-          });
+      let verifyQuery = 'SELECT id, company_id FROM projects WHERE id = $1';
+      const verifyParams = [projectId];
+
+      if (!isSuperAdmin) {
+        verifyQuery += ' AND company_id = $2';
+        verifyParams.push(companyId);
+
+        if (role !== 'Admin') {
+          verifyQuery += ' AND (house_holder_id = $3 OR engineer_id = $3 OR manager_id = $3)';
+          verifyParams.push(userId);
         }
+      }
+
+      const verifyProject = await db.query(verifyQuery, verifyParams);
+      if (verifyProject.rows.length === 0) {
+        return res.status(403).json({
+          message: 'Access Denied: You are not authorized to view activities for this project.'
+        });
       }
 
       const specificQuery = `
@@ -112,14 +122,21 @@ export async function getActivities(req, res) {
       return res.status(200).json(result.rows);
     }
 
-    // Otherwise, fetch activities across allowed projects
-    let projectFilterClause = '';
+    // Otherwise, fetch activities across allowed projects within the company
+    let whereConditions = [];
     const queryParams = [];
 
-    if (role !== 'Admin') {
-      projectFilterClause = 'WHERE p.house_holder_id = $1 OR p.engineer_id = $1 OR p.manager_id = $1';
-      queryParams.push(userId);
+    if (effectiveCompanyId) {
+      queryParams.push(effectiveCompanyId);
+      whereConditions.push(`p.company_id = $${queryParams.length}`);
     }
+
+    if (!isSuperAdmin && role !== 'Admin') {
+      queryParams.push(userId);
+      whereConditions.push(`(p.house_holder_id = $${queryParams.length} OR p.engineer_id = $${queryParams.length} OR p.manager_id = $${queryParams.length})`);
+    }
+
+    const projectFilterClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const multiQuery = `
       SELECT 

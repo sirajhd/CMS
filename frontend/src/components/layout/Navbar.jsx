@@ -1,10 +1,11 @@
 import React from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, Building2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationDropdown } from './NotificationDropdown';
 
 export function Navbar({ onOpenMobileMenu }) {
-  const { user, role } = useAuth();
+  const { user, role, company } = useAuth();
+  const isSuperAdmin = role === 'SuperAdmin';
 
   return (
     <header className="h-16 bg-[#0d1117] border-b border-[#30363d] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
@@ -23,6 +24,24 @@ export function Navbar({ onOpenMobileMenu }) {
           <span className="bg-[#161b22] border border-[#30363d] px-2.5 py-0.5 rounded-full text-[#b4e600] font-bold text-[11px] uppercase tracking-wider">
             {role}
           </span>
+          {company && (
+            <>
+              <span className="text-[#30363d]">•</span>
+              <span className="inline-flex items-center gap-1.5 bg-[#161b22] border border-[#30363d] px-2.5 py-0.5 rounded-full text-slate-300 font-bold text-[11px]">
+                <Building2 className="w-3 h-3 text-[#b4e600]" />
+                {company.name} {company.code ? `(${company.code})` : ''}
+              </span>
+            </>
+          )}
+          {isSuperAdmin && (
+            <>
+              <span className="text-[#30363d]">•</span>
+              <span className="inline-flex items-center gap-1 bg-[#b4e600]/10 border border-[#b4e600]/30 px-2.5 py-0.5 rounded-full text-[#b4e600] font-bold text-[10px] uppercase">
+                <ShieldCheck className="w-3 h-3" />
+                Platform Scope
+              </span>
+            </>
+          )}
         </div>
       </div>
 

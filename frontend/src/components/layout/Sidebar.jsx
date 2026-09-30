@@ -14,12 +14,15 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  FileQuestion
+  FileQuestion,
+  Building2,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleCollapse }) {
-  const { user, role, logout } = useAuth();
+  const { user, role, company, logout } = useAuth();
   const location = useLocation();
   const userRole = role || user?.role || 'Admin';
 
@@ -48,6 +51,8 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
 
   const getDashboardPath = () => {
     switch (userRole) {
+      case 'SuperAdmin':
+        return '/superadmin/dashboard';
       case 'House Holder':
         return '/householder/dashboard';
       case 'Engineer':
@@ -60,6 +65,27 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
   };
 
   const allNavItems = [
+    // Super Admin Navigation
+    {
+      label: 'Platform Overview',
+      path: '/superadmin/dashboard',
+      icon: LayoutDashboard,
+      allowedRoles: ['SuperAdmin']
+    },
+    {
+      label: 'Companies / Tenants',
+      path: '/superadmin/companies',
+      icon: Building2,
+      allowedRoles: ['SuperAdmin']
+    },
+    {
+      label: 'Platform Audit Trail',
+      path: '/superadmin/audit-logs',
+      icon: ShieldCheck,
+      allowedRoles: ['SuperAdmin']
+    },
+
+    // Company Tenant Workspace Navigation
     { 
       label: 'Dashboard', 
       path: getDashboardPath(), 
@@ -76,7 +102,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
       label: 'Requests', 
       path: '/requests', 
       icon: FileQuestion, 
-      allowedRoles: ['Admin', 'Engineer', 'House Holder'] 
+      allowedRoles: ['Admin', 'House Holder', 'Engineer', 'Manager'] 
     },
     { 
       label: 'Users', 
@@ -88,13 +114,13 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
       label: 'Payments', 
       path: '/payments', 
       icon: CreditCard, 
-      allowedRoles: ['Admin', 'House Holder', 'Manager'] 
+      allowedRoles: ['Admin', 'House Holder', 'Engineer', 'Manager'] 
     },
     { 
       label: 'Materials', 
       path: '/materials', 
       icon: Boxes, 
-      allowedRoles: ['Admin', 'Engineer', 'Manager'] 
+      allowedRoles: ['Admin', 'House Holder', 'Engineer', 'Manager'] 
     },
     { 
       label: 'Documents', 
@@ -106,7 +132,7 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
       label: 'Activities', 
       path: '/activities', 
       icon: Activity, 
-      allowedRoles: ['Admin', 'House Holder', 'Engineer', 'Manager'] 
+      allowedRoles: ['SuperAdmin', 'Admin', 'House Holder', 'Engineer', 'Manager'] 
     },
   ];
 
@@ -134,23 +160,23 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
       >
         {/* Mobile Header (Fixed Top) */}
         <div className="h-16 flex-shrink-0 px-4 flex items-center justify-between border-b border-[#30363d] bg-[#161b22]">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#b4e600] text-black rounded-xl shadow-md ring-2 ring-[#b4e600]/20">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-[#b4e600] text-black rounded-xl shadow-md ring-2 ring-[#b4e600]/20 flex-shrink-0">
               <HardHat className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <div>
-              <span className="font-black text-white text-sm tracking-wider uppercase block">
-                CMS BUILDER
+            <div className="truncate">
+              <span className="font-black text-white text-sm tracking-wider uppercase block truncate">
+                {user?.company?.name || 'HDtech-CMS'}
               </span>
-              <span className="text-[10px] text-[#b4e600] uppercase font-mono tracking-widest block font-bold">
-                {userRole}
+              <span className="text-[10px] text-[#b4e600] uppercase font-mono tracking-widest block font-bold truncate">
+                {user?.company?.code ? `${user.company.code} • ` : ''}{userRole}
               </span>
             </div>
           </div>
           <button
             type="button"
             onClick={onCloseMobile}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-[#0d1117] transition-colors cursor-pointer"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-[#0d1117] transition-colors cursor-pointer flex-shrink-0"
             aria-label="Close navigation menu"
           >
             <X className="w-5 h-5" />
@@ -226,11 +252,11 @@ export function Sidebar({ isMobileOpen, onCloseMobile, isCollapsed, onToggleColl
             </div>
             {!isCollapsed && (
               <div className="truncate">
-                <h1 className="text-sm font-black text-white tracking-wider uppercase truncate">
-                  CMS BUILDER
+                <h1 className="text-sm font-black text-white tracking-wider uppercase truncate" title={user?.company?.name || 'HDtech-CMS'}>
+                  {user?.company?.name || 'HDtech-CMS'}
                 </h1>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#b4e600] font-mono">
-                  {userRole}
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#b4e600] font-mono truncate block">
+                  {user?.company?.code ? `${user.company.code} • ` : ''}{userRole}
                 </span>
               </div>
             )}
